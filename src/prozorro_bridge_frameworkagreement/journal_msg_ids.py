@@ -1,0 +1,6 @@
+DATABRIDGE_GET_CREDENTIALS = "get_credentials"
+DATABRIDGE_GOT_CREDENTIALS = "got_credentials"
+DATABRIDGE_EXCEPTION = "exception"
+DATARGIDGE_GOT_AGREEMENT_FOR_SYNC = "got_agreement_for_sync"
+DATABRIDGE_SKIP_AGREEMENT = "skip_agreement"
+DATABRIDGE_AGREEMENT_CREATING = "agreement_creating"
