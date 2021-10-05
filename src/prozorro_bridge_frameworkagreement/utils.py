@@ -1,4 +1,5 @@
 from prozorro_bridge_frameworkagreement.settings import LOGGER
+from prozorro_bridge_frameworkagreement.journal_msg_ids import DATABRIDGE_MISSING_AGREEMENTS
 
 
 def journal_context(record: dict = None, params: dict = None) -> dict:
@@ -12,9 +13,26 @@ def journal_context(record: dict = None, params: dict = None) -> dict:
 
 
 def check_tender(tender: dict) -> bool:
-    if "agreements" not in tender:
-        LOGGER.warn(
+    if (
+            tender["procurementMethodType"] == "closeFrameworkAgreementUA"
+            and tender["status"] in ("complete", "active.awarded")
+    ):
+        if "agreements" in tender:
+            return True
+        LOGGER.warning(
             "No agreements found in tender {}".format(tender["id"]),
-            extra=journal_context({"MESSAGE_ID": "missing_agreements"}, params={"TENDER_ID": tender["id"]})
+            extra=journal_context(
+                {"MESSAGE_ID": DATABRIDGE_MISSING_AGREEMENTS},
+                params={"TENDER_ID": tender["id"]}
+            )
         )
-        return False
+    elif (
+            tender["procurementMethodType"] == "closeFrameworkAgreementSelectionUA"
+            and tender["status"] == "draft.pending"
+            and (
+                    tender.get("lots", None) is None
+                    or any(lot["status"] == "active" for lot in tender["lots"])
+            )
+    ):
+        return True
+    return False

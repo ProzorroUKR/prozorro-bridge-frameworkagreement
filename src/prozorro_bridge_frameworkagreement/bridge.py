@@ -12,9 +12,20 @@ from prozorro_bridge_frameworkagreement.journal_msg_ids import (
     DATARGIDGE_GOT_AGREEMENT_FOR_SYNC,
     DATABRIDGE_SKIP_AGREEMENT,
     DATABRIDGE_AGREEMENT_CREATING,
+    DATABRIDGE_PATCH_TENDER_STATUS,
+    DATABRIDGE_RECEIVED_AGREEMENT_DATA,
+    DATABRIDGE_PATCH_AGREEMENT_DATA,
+    DATABRIDGE_SKIP_TENDER,
 )
 
 cache_db = Db()
+
+
+async def check_cache(tender: dict) -> bool:
+    if tender["procurementMethodType"] == "closeFrameworkAgreementUA":
+        return await cache_db.has_agreements_tender(tender["id"])
+    elif tender["procurementMethodType"] == "closeFrameworkAgreementSelectionUA":
+        return await cache_db.has_selective_tender(tender["id"])
 
 
 async def get_tender_credentials(tender_id: str, session: ClientSession) -> dict:
@@ -73,17 +84,11 @@ async def get_tender(tender_id: str, session: ClientSession) -> dict:
             await asyncio.sleep(ERROR_INTERVAL)
 
 
-async def _get_tender_agreements(tender_to_sync: dict, session: ClientSession) -> list:
-    # TODO: caching here
+async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) -> list:
     agreements = []
 
     for agreement in tender_to_sync["agreements"]:
         if agreement["status"] != "active":
-            continue
-
-        if cache_db.has(agreement["id"]):
-            LOGGER.info(f"Agreement {agreement['id']} exists in local db")
-            await cache_db.put_item_in_cache_by_agreement(agreement, agreement["dateModified"])
             continue
         response = await session.get(f"{BASE_URL}/agreements/{agreement['id']}", headers=HEADERS)
 
@@ -104,10 +109,8 @@ async def _get_tender_agreements(tender_to_sync: dict, session: ClientSession) -
                     params=({"TENDER_ID": tender_to_sync["id"], "AGREEMENT_ID": agreement["id"]})
                 )
             )
-            await cache_db.put_item_in_cache_by_agreement(agreement["id"], agreement["dateModified"])
             continue
         elif response.status == 200:
-            await cache_db.put(agreement["id"], True)
             LOGGER.info(
                 f"Agreement {agreement['id']} already exist",
                 extra=journal_context(
@@ -115,24 +118,8 @@ async def _get_tender_agreements(tender_to_sync: dict, session: ClientSession) -
                     params=({"TENDER_ID": tender_to_sync["id"], "AGREEMENT_ID": agreement["id"]})
                 )
             )
-            await cache_db.put_item_in_cache_by_agreement(agreement["id"], agreement["dateModified"])
             continue
-
-    await cache_db.put_item_in_cache_by_agreement(tender_to_sync["id"], tender_to_sync["dateModified"])
     return agreements
-
-
-async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) -> list:
-    while True:
-        try:
-            return await _get_tender_agreements(tender_to_sync, session)
-        except Exception as e:
-            LOGGER.warn(
-                "Fail to handle tender agreements",
-                extra=journal_context({"MESSAGE_ID": DATABRIDGE_EXCEPTION})
-                )
-            LOGGER.exception(e)
-            await asyncio.sleep(ERROR_INTERVAL)
 
 
 async def fill_agreement(agreement: dict, tender: dict, session: ClientSession) -> None:
@@ -165,20 +152,120 @@ async def post_agreement(agreement: dict, session: ClientSession) -> bool:
             data = await response.text()
             LOGGER.exception(data)
             if response.status not in (403, 422):
-                LOGGER.warning(f"Stop trying post agreement {agreement['id']} of tender {agreement['tender_id']}")
+                LOGGER.error(
+                    f"Stop trying post agreement {agreement['id']} of tender {agreement['tender_id']}. "
+                    f"Response: {data}",
+                    extra=journal_context(
+                        {"MESSAGE_ID": DATABRIDGE_EXCEPTION},
+                        params={"TENDER_ID": agreement['tender_id']}
+                    )
+                )
                 return False
-            LOGGER.warning(f"Agreement {agreement['id']} of tender {agreement['tender_id']} was not created, retrying")
+            LOGGER.warning(
+                f"Agreement {agreement['id']} of tender {agreement['tender_id']} was not created, retrying"
+            )
             await asyncio.sleep(ERROR_INTERVAL)
             continue
         return True
 
 
+async def check_and_patch_agreements(agreements: list, tender_id: str, session: ClientSession) -> bool:
+    posted_agreements = {}
+    for agreement in agreements:
+        response = await session.get(f"{BASE_URL}/agreements/{agreement['id']}", headers=HEADERS)
+        if response.status == 404:
+            return False
+        LOGGER.info(
+            f"Received agreement data {agreement['id']}",
+            extra=journal_context(
+                {"MESSAGE_ID": DATABRIDGE_RECEIVED_AGREEMENT_DATA},
+                params={"TENDER_ID": tender_id, "AGREEMENT_ID": agreement['id']}
+            )
+        )
+        agreement_data = await response.json()
+        agreement_data["data"].pop("id")
+        posted_agreements[agreement['id']] = agreement_data
+        LOGGER.info(
+            f"Patch tender agreement {agreement['id']}",
+            extra=journal_context(
+                {"MESSAGE_ID": DATABRIDGE_PATCH_AGREEMENT_DATA},
+                params={"TENDER_ID": tender_id, "AGREEMENT_ID": agreement['id']}
+            )
+        )
+        await session.patch(
+            f"{BASE_URL}/tenders/{tender_id}/agreements/{agreement['id']}",
+            json={"data": agreement},
+            headers=HEADERS
+        )
+    return True
+
+
+async def patch_tender(tender: dict, agreements_exists: bool, session: ClientSession) -> None:
+    status = "active.enquiries"
+    if not agreements_exists:
+        status = "draft.unsuccessful"
+    while True:
+        LOGGER.info(
+            f"Switch tender {tender['id']} status to {status}",
+            extra=journal_context(
+                {"MESSAGE_ID": DATABRIDGE_PATCH_TENDER_STATUS},
+                params={"TENDER_ID": tender["id"]}
+            )
+        )
+        response = await session.patch(
+            f"{BASE_URL}/tenders/{tender['id']}",
+            json={"data": {"status": status}},
+            headers=HEADERS
+        )
+        data = await response.text()
+        if response.status == 201:
+            LOGGER.info(
+                f"Successfully switched tender {tender['id']} to status {status}",
+                extra=journal_context(
+                    {"MESSAGE_ID": DATABRIDGE_PATCH_TENDER_STATUS},
+                    params={"TENDER_ID": tender["id"]}
+                )
+            )
+            await cache_db.cache_selective_tender(tender["id"], tender["dateModified"])
+            return
+        elif response.status in (403, 422):
+            LOGGER.error(
+                f"Stop trying patch tender {tender['id']}. "
+                f"Response: {data}",
+                extra=journal_context(
+                    {"MESSAGE_ID": DATABRIDGE_EXCEPTION},
+                    params={"TENDER_ID": tender["id"]}
+                )
+            )
+            return
+        else:
+            LOGGER.warning(
+                f"Tender {tender['id']} was not patched, retrying. "
+                f"Response: {data}"
+            )
+            await asyncio.sleep(ERROR_INTERVAL)
+
+
 async def process_tender(session: ClientSession, tender: dict) -> None:
-    if not check_tender(tender):
+    if not check_tender(tender) or await check_cache(tender):
+        LOGGER.info(
+            f"Skipping tender {tender['id']} in status {tender['status']}",
+            extra=journal_context(
+                {"MESSAGE_ID": DATABRIDGE_SKIP_TENDER},
+                params={"TENDER_ID": tender["id"]}
+            ),
+        )
         return None
     tender_to_sync = await get_tender(tender["id"], session)
-    agreements = await get_tender_agreements(tender_to_sync, session)
-    for agreement in agreements:
-        await fill_agreement(agreement, tender_to_sync, session)
-        if await post_agreement(agreement, session):
-            await cache_db.put(agreement["id"], True)
+    if tender["procurementMethodType"] == "closeFrameworkAgreementUA":
+        agreements = await get_tender_agreements(tender_to_sync, session)
+        post_results = []
+        for agreement in agreements:
+            await fill_agreement(agreement, tender_to_sync, session)
+            post_result = await post_agreement(agreement, session)
+            post_results.append(post_result)
+        if all(post_results):
+            await cache_db.cache_agreements_tender(tender_to_sync["id"], tender_to_sync["dateModified"])
+    elif tender["procurementMethodType"] == "closeFrameworkAgreementSelectionUA":
+        posted_agreements = await check_and_patch_agreements(tender_to_sync["agreements"], tender["id"], session)
+        await patch_tender(tender, posted_agreements, session)

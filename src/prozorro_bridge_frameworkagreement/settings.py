@@ -5,7 +5,8 @@ from prozorro_crawler.settings import logger, CRAWLER_USER_AGENT
 MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://root:example@localhost:27017")
 MONGODB_DATABASE = os.environ.get("MONGODB_DATABASE", "prozorro-bridge-frameworkagreement")
 MONGODB_AGREEMENTS_COLLECTION = os.environ.get("MONGODB_AGREEMENTS_COLLECTION", "agreements")
-ERROR_INTERVAL = int(os.environ.get("ERROR_INTERVAL", 20))
+MONGODB_SELECTIVE_COLLECTION = os.environ.get("MONGODB_SELECTIVE_COLLECTION", "selective")
+ERROR_INTERVAL = int(os.environ.get("ERROR_INTERVAL", 10))
 
 API_OPT_FIELDS = os.environ.get("API_OPT_FIELDS", "status,lots,procurementMethodType")
 PUBLIC_API_HOST = os.environ.get("PUBLIC_API_HOST", "https://lb-api-sandbox-2.prozorro.gov.ua")
