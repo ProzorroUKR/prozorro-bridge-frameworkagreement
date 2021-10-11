@@ -1,6 +1,7 @@
 from aiohttp import ClientSession
 import asyncio
 import json
+from typing import AsyncGenerator
 
 from prozorro_bridge_frameworkagreement.settings import BASE_URL, LOGGER, ERROR_INTERVAL, HEADERS
 from prozorro_bridge_frameworkagreement.utils import journal_context, check_tender
@@ -84,9 +85,7 @@ async def get_tender(tender_id: str, session: ClientSession) -> dict:
             await asyncio.sleep(ERROR_INTERVAL)
 
 
-async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) -> list:
-    agreements = []
-
+async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) -> AsyncGenerator[dict, None]:
     for agreement in tender_to_sync["agreements"]:
         if agreement["status"] != "active":
             continue
@@ -100,7 +99,7 @@ async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) ->
                     {"AGREEMENT_ID": agreement["id"], "TENDER_ID": tender_to_sync["id"]}
                 )
             )
-            agreements.append(agreement)
+            yield agreement
         elif response.status == 410:
             LOGGER.info(
                 f"Sync agreement {agreement['id']} of tender {tender_to_sync['id']} has been archived",
@@ -119,7 +118,6 @@ async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) ->
                 )
             )
             continue
-    return agreements
 
 
 async def fill_agreement(agreement: dict, tender: dict, session: ClientSession) -> None:
@@ -278,9 +276,8 @@ async def process_tender(session: ClientSession, tender: dict) -> None:
         return None
     tender_to_sync = await get_tender(tender["id"], session)
     if tender["procurementMethodType"] == "closeFrameworkAgreementUA":
-        agreements = await get_tender_agreements(tender_to_sync, session)
         post_results = []
-        for agreement in agreements:
+        async for agreement in get_tender_agreements(tender_to_sync, session):
             await fill_agreement(agreement, tender_to_sync, session)
             post_result = await post_agreement(agreement, session)
             post_results.append(post_result)

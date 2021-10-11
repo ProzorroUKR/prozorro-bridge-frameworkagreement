@@ -135,7 +135,9 @@ async def test_get_tender_agreements_not_found(mocked_logger, agreement_data, te
         MagicMock(status=404, text=AsyncMock(return_value=json.dumps({"error": "Not found"}))),
     ])
 
-    data = await get_tender_agreements(tender_data, session_mock)
+    data = []
+    async for i in get_tender_agreements(tender_data, session_mock):
+        data.append(i)
 
     assert session_mock.get.await_count == 1
     assert mocked_logger.info.call_count == 1
@@ -149,7 +151,9 @@ async def test_get_tender_agreements_found(mocked_logger, agreement_data, tender
     session_mock.get = AsyncMock(side_effect=[
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": agreement_data}))),
     ])
-    data = await get_tender_agreements(tender_data, session_mock)
+    data = []
+    async for i in get_tender_agreements(tender_data, session_mock):
+        data.append(i)
     assert session_mock.get.await_count == 1
     assert mocked_logger.info.call_count == 1
     assert data == []
@@ -157,7 +161,9 @@ async def test_get_tender_agreements_found(mocked_logger, agreement_data, tender
     session_mock.get = AsyncMock(side_effect=[
         MagicMock(status=410, text=AsyncMock(return_value=json.dumps({"data": agreement_data}))),
     ])
-    data = await get_tender_agreements(tender_data, session_mock)
+    data = []
+    async for i in get_tender_agreements(tender_data, session_mock):
+        data.append(i)
     assert session_mock.get.await_count == 1
     assert mocked_logger.info.call_count == 2
     assert data == []
