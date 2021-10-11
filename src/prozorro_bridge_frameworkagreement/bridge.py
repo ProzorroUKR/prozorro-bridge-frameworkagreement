@@ -50,7 +50,7 @@ async def get_tender_credentials(tender_id: str, session: ClientSession) -> dict
                         {"TENDER_ID": tender_id}
                     ),
                 )
-                return data
+                return data["data"]
             raise ConnectionError(f"Failed to get credentials {data}")
         except Exception as e:
             LOGGER.warning(
@@ -124,12 +124,12 @@ async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) ->
 
 async def fill_agreement(agreement: dict, tender: dict, session: ClientSession) -> None:
     credentials_data = await get_tender_credentials(tender["id"], session)
-    assert "owner" in credentials_data.get("data", {})
-    assert "tender_token" in credentials_data.get("data", {})
+    assert "owner" in credentials_data
+    assert "tender_token" in credentials_data
     agreement["agreementType"] = "cfaua"
     agreement["tender_id"] = tender["id"]
-    agreement["tender_token"] = credentials_data["data"]["tender_token"]
-    agreement["owner"] = credentials_data["data"]["owner"]
+    agreement["tender_token"] = credentials_data["tender_token"]
+    agreement["owner"] = credentials_data["owner"]
     agreement["procuringEntity"] = tender["procuringEntity"]
     if "mode" in tender:
         agreement["mode"] = tender["mode"]
@@ -145,13 +145,21 @@ async def post_agreement(agreement: dict, session: ClientSession) -> bool:
                 {"TENDER_ID": agreement['tender_id'], "AGREEMENENT_ID": agreement['id']}
             )
         )
-        response = await session.post(f"{BASE_URL}/agreements", json={"data": agreement}, headers=HEADERS)
+        try:
+            response = await session.post(f"{BASE_URL}/agreements", json={"data": agreement}, headers=HEADERS)
+        except Exception as e:
+            LOGGER.warning(
+                f"Error on posting agreement {agreement['id']} of tender {agreement['tender_id']}. "
+                f"Response: {str(e)}"
+            )
+            await asyncio.sleep(ERROR_INTERVAL)
+            continue
         if response.status == 201:
             LOGGER.info(f"Agreement {agreement['id']} of tender {agreement['tender_id']} successfully created")
         else:
             data = await response.text()
             LOGGER.exception(data)
-            if response.status not in (403, 422):
+            if response.status in (403, 422):
                 LOGGER.error(
                     f"Stop trying post agreement {agreement['id']} of tender {agreement['tender_id']}. "
                     f"Response: {data}",
@@ -170,10 +178,15 @@ async def post_agreement(agreement: dict, session: ClientSession) -> bool:
 
 
 async def check_and_patch_agreements(agreements: list, tender_id: str, session: ClientSession) -> bool:
-    posted_agreements = {}
     for agreement in agreements:
         response = await session.get(f"{BASE_URL}/agreements/{agreement['id']}", headers=HEADERS)
         if response.status == 404:
+            LOGGER.warning(
+                f"Agreement {agreement['id']} doesn't exist",
+                extra=journal_context(
+                    params={"TENDER_ID": tender_id, "AGREEMENT_ID": agreement['id']}
+                )
+            )
             return False
         LOGGER.info(
             f"Received agreement data {agreement['id']}",
@@ -184,7 +197,6 @@ async def check_and_patch_agreements(agreements: list, tender_id: str, session: 
         )
         agreement_data = await response.json()
         agreement_data["data"].pop("id")
-        posted_agreements[agreement['id']] = agreement_data
         LOGGER.info(
             f"Patch tender agreement {agreement['id']}",
             extra=journal_context(
@@ -194,7 +206,7 @@ async def check_and_patch_agreements(agreements: list, tender_id: str, session: 
         )
         await session.patch(
             f"{BASE_URL}/tenders/{tender_id}/agreements/{agreement['id']}",
-            json={"data": agreement},
+            json=agreement_data,
             headers=HEADERS
         )
     return True
@@ -212,13 +224,21 @@ async def patch_tender(tender: dict, agreements_exists: bool, session: ClientSes
                 params={"TENDER_ID": tender["id"]}
             )
         )
-        response = await session.patch(
-            f"{BASE_URL}/tenders/{tender['id']}",
-            json={"data": {"status": status}},
-            headers=HEADERS
-        )
+        try:
+            response = await session.patch(
+                f"{BASE_URL}/tenders/{tender['id']}",
+                json={"data": {"status": status}},
+                headers=HEADERS
+            )
+        except Exception as e:
+            LOGGER.warning(
+                f"Error on patching tender {tender['id']} to status {status}. "
+                f"Response: {str(e)}"
+            )
+            await asyncio.sleep(ERROR_INTERVAL)
+            continue
         data = await response.text()
-        if response.status == 201:
+        if response.status == 200:
             LOGGER.info(
                 f"Successfully switched tender {tender['id']} to status {status}",
                 extra=journal_context(
