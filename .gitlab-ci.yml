@@ -57,7 +57,8 @@ review:
           --set prozorro.api.image.tag=$API_TAG
           --set deployAuctions=false
           --set deployAuction=true
-          --set prozorro-bridges.bridges.frameworkagreement.deploy=false
+          --set prozorro-bridges.bridges.agreements.deploy=false
+          --set prozorro-bridges.bridges.cfaselection.deploy=false
           --wait
     - helm3 --debug upgrade ${CI_COMMIT_REF_SLUG}-frameworkagreement --install prozorro/prozorro-bridge-frameworkagreement --namespace dev-prozorro
           --set bridge_frameworkagreement.container.environment.PUBLIC_API_HOST=$API_HOST
@@ -83,7 +84,6 @@ stop_review:
   except:
     - master
   when: manual
-
 
 robot_tests:
   stage: robot
