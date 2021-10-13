@@ -351,10 +351,10 @@ async def test_process_tender_skip(mocked_logger, tender_data):
     db_mock = AsyncMock()
     db_mock.has_agreements_tender = AsyncMock(return_value=False)
     session_mock = AsyncMock()
+    tender_data.pop("agreements")
     session_mock.get = AsyncMock(side_effect=[
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
     ])
-    tender_data.pop("agreements")
 
     with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", db_mock):
         await process_tender(session_mock, tender_data)
