@@ -72,8 +72,8 @@ review:
 stop_review:
   stage: deploy
   script:
-    - helm3 delete $CI_COMMIT_REF_SLUG
-    - helm3 delete $CI_COMMIT_REF_SLUG-frameworkagreement
+    - helm3 delete $CI_COMMIT_REF_SLUG --namespace dev-prozorro
+    - helm3 delete $CI_COMMIT_REF_SLUG-frameworkagreement --namespace dev-prozorro
   environment:
     name: review/${CI_COMMIT_REF_SLUG}
     action: stop
