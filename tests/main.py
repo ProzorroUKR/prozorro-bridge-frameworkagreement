@@ -58,8 +58,7 @@ def tender_data(agreement_data):
 
 
 @pytest.mark.asyncio
-@patch("prozorro_bridge_frameworkagreement.utils.LOGGER")
-async def test_check_tender(mocked_logger, tender_data, agreement_data):
+async def test_check_tender(tender_data, agreement_data):
     value = check_tender(tender_data)
     assert value is True
 
@@ -67,12 +66,6 @@ async def test_check_tender(mocked_logger, tender_data, agreement_data):
     test_data["status"] = "active.tendering"
     value = check_tender(test_data)
     assert value is False
-
-    test_data = deepcopy(tender_data)
-    test_data.pop("agreements")
-    value = check_tender(test_data)
-    assert value is False
-    assert mocked_logger.warning.call_count == 1
 
     test_data = deepcopy(tender_data)
     test_data["procurementMethodType"] = "closeFrameworkAgreementSelectionUA"
@@ -355,6 +348,30 @@ async def test_process_tender_positive(mocked_logger, tender_data, agreement_dat
 @pytest.mark.asyncio
 @patch("prozorro_bridge_frameworkagreement.bridge.LOGGER")
 async def test_process_tender_skip(mocked_logger, tender_data):
+    db_mock = AsyncMock()
+    db_mock.has_agreements_tender = AsyncMock(return_value=False)
+    session_mock = AsyncMock()
+    session_mock.get = AsyncMock(side_effect=[
+        MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
+    ])
+    tender_data.pop("agreements")
+
+    with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", db_mock):
+        await process_tender(session_mock, tender_data)
+
+    assert session_mock.post.await_count == 0
+    assert session_mock.get.await_count == 1
+    assert session_mock.patch.await_count == 0
+    assert mocked_logger.info.call_count == 1
+    assert mocked_logger.error.call_count == 0
+    assert mocked_logger.warning.call_count == 0
+    assert db_mock.cache_agreements_tender.call_count == 0
+    assert db_mock.has_agreements_tender.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("prozorro_bridge_frameworkagreement.bridge.LOGGER")
+async def test_process_tender_skip_cached(mocked_logger, tender_data):
     db_mock = AsyncMock()
     session_mock = AsyncMock()
     db_mock.has_agreements_tender = AsyncMock(return_value=True)

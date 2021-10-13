@@ -3,7 +3,15 @@ import asyncio
 import json
 from typing import AsyncGenerator
 
-from prozorro_bridge_frameworkagreement.settings import BASE_URL, LOGGER, ERROR_INTERVAL, HEADERS
+from prozorro_bridge_frameworkagreement.settings import (
+    BASE_URL,
+    LOGGER,
+    ERROR_INTERVAL,
+    HEADERS,
+    API_TOKEN,
+    API_TOKEN_GET_CREDENTIALS,
+    API_TOKEN_POST_AGREEMENTS,
+)
 from prozorro_bridge_frameworkagreement.utils import journal_context, check_tender
 from prozorro_bridge_frameworkagreement.db import Db
 from prozorro_bridge_frameworkagreement.journal_msg_ids import (
@@ -17,6 +25,7 @@ from prozorro_bridge_frameworkagreement.journal_msg_ids import (
     DATABRIDGE_RECEIVED_AGREEMENT_DATA,
     DATABRIDGE_PATCH_AGREEMENT_DATA,
     DATABRIDGE_SKIP_TENDER,
+    DATABRIDGE_MISSING_AGREEMENTS,
 )
 
 cache_db = Db()
@@ -30,6 +39,7 @@ async def check_cache(tender: dict) -> bool:
 
 
 async def get_tender_credentials(tender_id: str, session: ClientSession) -> dict:
+    HEADERS["Authorization"] = f"Bearer {API_TOKEN_GET_CREDENTIALS}"
     url = f"{BASE_URL}/tenders/{tender_id}/extract_credentials"
     while True:
         LOGGER.info(
@@ -135,6 +145,7 @@ async def fill_agreement(agreement: dict, tender: dict, session: ClientSession) 
 
 
 async def post_agreement(agreement: dict, session: ClientSession) -> bool:
+    HEADERS["Authorization"] = f"Bearer {API_TOKEN_POST_AGREEMENTS}"
     while True:
         LOGGER.info(
             f"Creating agreement {agreement['id']} of tender {agreement['tender_id']}",
@@ -176,6 +187,7 @@ async def post_agreement(agreement: dict, session: ClientSession) -> bool:
 
 
 async def check_and_patch_agreements(agreements: list, tender_id: str, session: ClientSession) -> bool:
+    HEADERS["Authorization"] = f"Bearer {API_TOKEN}"
     for agreement in agreements:
         response = await session.get(f"{BASE_URL}/agreements/{agreement['id']}", headers=HEADERS)
         if response.status == 404:
@@ -211,6 +223,7 @@ async def check_and_patch_agreements(agreements: list, tender_id: str, session: 
 
 
 async def patch_tender(tender: dict, agreements_exists: bool, session: ClientSession) -> None:
+    HEADERS["Authorization"] = f"Bearer {API_TOKEN}"
     status = "active.enquiries"
     if not agreements_exists:
         status = "draft.unsuccessful"
@@ -276,6 +289,15 @@ async def process_tender(session: ClientSession, tender: dict) -> None:
         return None
     tender_to_sync = await get_tender(tender["id"], session)
     if tender["procurementMethodType"] == "closeFrameworkAgreementUA":
+        if "agreements" not in tender:
+            LOGGER.info(
+                "No agreements found in tender {}".format(tender["id"]),
+                extra=journal_context(
+                    {"MESSAGE_ID": DATABRIDGE_MISSING_AGREEMENTS},
+                    params={"TENDER_ID": tender["id"]}
+                )
+            )
+            return None
         post_results = []
         async for agreement in get_tender_agreements(tender_to_sync, session):
             await fill_agreement(agreement, tender_to_sync, session)

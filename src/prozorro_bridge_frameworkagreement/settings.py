@@ -12,7 +12,9 @@ API_OPT_FIELDS = os.environ.get("API_OPT_FIELDS", "status,lots,procurementMethod
 PUBLIC_API_HOST = os.environ.get("PUBLIC_API_HOST", "https://lb-api-sandbox-2.prozorro.gov.ua")
 API_VERSION = os.environ.get("API_VERSION", "2.5")
 BASE_URL = f"{PUBLIC_API_HOST}/api/{API_VERSION}"
-API_TOKEN = os.environ.get("API_TOKEN", "contracting")
+API_TOKEN = os.environ.get("API_TOKEN", "fa_bot")
+API_TOKEN_POST_AGREEMENTS = os.environ.get("API_TOKEN_POST_AGREEMENTS", "agreements")
+API_TOKEN_GET_CREDENTIALS = os.environ.get("API_TOKEN_GET_CREDENTIALS", "contracting")
 
 HEADERS = {
     "Content-Type": "application/json",
