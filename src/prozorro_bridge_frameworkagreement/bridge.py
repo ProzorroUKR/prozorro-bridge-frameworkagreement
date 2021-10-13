@@ -289,7 +289,7 @@ async def process_tender(session: ClientSession, tender: dict) -> None:
         return None
     tender_to_sync = await get_tender(tender["id"], session)
     if tender["procurementMethodType"] == "closeFrameworkAgreementUA":
-        if "agreements" not in tender:
+        if "agreements" not in tender_to_sync:
             LOGGER.info(
                 "No agreements found in tender {}".format(tender["id"]),
                 extra=journal_context(
