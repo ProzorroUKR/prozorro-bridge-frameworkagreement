@@ -10,12 +10,12 @@ def journal_context(record: dict = None, params: dict = None) -> dict:
 
 def check_tender(tender: dict) -> bool:
     if (
-            tender["procurementMethodType"] == "closeFrameworkAgreementUA"
+            tender.get("procurementMethodType", "") == "closeFrameworkAgreementUA"
             and tender["status"] in ("complete", "active.awarded")
     ):
         return True
     elif (
-            tender["procurementMethodType"] == "closeFrameworkAgreementSelectionUA"
+            tender.get("procurementMethodType", "") == "closeFrameworkAgreementSelectionUA"
             and tender["status"] == "draft.pending"
             and (
                     tender.get("lots", None) is None

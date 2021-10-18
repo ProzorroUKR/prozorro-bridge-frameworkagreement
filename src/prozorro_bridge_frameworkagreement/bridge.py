@@ -98,6 +98,12 @@ async def get_tender(tender_id: str, session: ClientSession) -> dict:
 async def get_tender_agreements(tender_to_sync: dict, session: ClientSession) -> AsyncGenerator[dict, None]:
     for agreement in tender_to_sync["agreements"]:
         if agreement["status"] != "active":
+            LOGGER.info(
+                f"Skipping agreement {agreement} with status {agreement['status']}",
+                extra=journal_context(
+                    params={"TENDER_ID": tender_to_sync["id"]}
+                ),
+            )
             continue
         response = await session.get(f"{BASE_URL}/agreements/{agreement['id']}", headers=HEADERS)
 
@@ -278,9 +284,18 @@ async def patch_tender(tender: dict, agreements_exists: bool, session: ClientSes
 
 
 async def process_tender(session: ClientSession, tender: dict) -> None:
-    if not check_tender(tender) or await check_cache(tender):
+    if not check_tender(tender):
         LOGGER.info(
             f"Skipping tender {tender['id']} in status {tender['status']}",
+            extra=journal_context(
+                {"MESSAGE_ID": DATABRIDGE_SKIP_TENDER},
+                params={"TENDER_ID": tender["id"]}
+            ),
+        )
+        return None
+    if await check_cache(tender):
+        LOGGER.info(
+            f"Tender {tender['id']} cached, skipping",
             extra=journal_context(
                 {"MESSAGE_ID": DATABRIDGE_SKIP_TENDER},
                 params={"TENDER_ID": tender["id"]}
@@ -303,7 +318,13 @@ async def process_tender(session: ClientSession, tender: dict) -> None:
             await fill_agreement(agreement, tender_to_sync, session)
             post_result = await post_agreement(agreement, session)
             post_results.append(post_result)
-        if all(post_results):
+        if all(post_results) and post_results != []:
+            LOGGER.info(
+                f"Put tender {tender['id']} in cache",
+                extra=journal_context(
+                    params={"TENDER_ID": tender["id"]}
+                ),
+            )
             await cache_db.cache_agreements_tender(tender_to_sync["id"], tender_to_sync["dateModified"])
     elif tender["procurementMethodType"] == "closeFrameworkAgreementSelectionUA":
         posted_agreements = await check_and_patch_agreements(tender_to_sync["agreements"], tender["id"], session)
