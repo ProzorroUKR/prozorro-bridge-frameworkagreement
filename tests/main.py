@@ -133,7 +133,7 @@ async def test_get_tender_agreements_not_found(mocked_logger, agreement_data, te
         data.append(i)
 
     assert session_mock.get.await_count == 1
-    assert mocked_logger.info.call_count == 1
+    assert mocked_logger.info.call_count == 2
     assert data == [agreement_data]
 
 
@@ -148,7 +148,7 @@ async def test_get_tender_agreements_found(mocked_logger, agreement_data, tender
     async for i in get_tender_agreements(tender_data, session_mock):
         data.append(i)
     assert session_mock.get.await_count == 1
-    assert mocked_logger.info.call_count == 1
+    assert mocked_logger.info.call_count == 2
     assert data == []
 
     session_mock.get = AsyncMock(side_effect=[
@@ -158,7 +158,7 @@ async def test_get_tender_agreements_found(mocked_logger, agreement_data, tender
     async for i in get_tender_agreements(tender_data, session_mock):
         data.append(i)
     assert session_mock.get.await_count == 1
-    assert mocked_logger.info.call_count == 2
+    assert mocked_logger.info.call_count == 4
     assert data == []
 
 
@@ -337,7 +337,7 @@ async def test_process_tender_positive(mocked_logger, tender_data, agreement_dat
     assert session_mock.post.await_count == 1
     assert session_mock.get.await_count == 3
     assert session_mock.patch.await_count == 0
-    assert mocked_logger.info.call_count == 5
+    assert mocked_logger.info.call_count == 7
     assert mocked_logger.error.call_count == 0
     assert mocked_logger.warning.call_count == 0
     assert db_mock.cache_agreements_tender.call_count == 1
