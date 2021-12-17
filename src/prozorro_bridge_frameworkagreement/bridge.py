@@ -285,7 +285,7 @@ async def patch_tender(tender: dict, agreements_exists: bool, session: ClientSes
 
 async def process_tender(session: ClientSession, tender: dict) -> None:
     if not check_tender(tender):
-        LOGGER.info(
+        LOGGER.debug(
             f"Skipping tender {tender['id']} in status {tender['status']}",
             extra=journal_context(
                 {"MESSAGE_ID": DATABRIDGE_SKIP_TENDER},
