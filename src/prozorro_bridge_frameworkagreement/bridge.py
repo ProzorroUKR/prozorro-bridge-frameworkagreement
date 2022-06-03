@@ -4,15 +4,18 @@ import json
 from typing import AsyncGenerator
 
 from prozorro_bridge_frameworkagreement.settings import (
-    BASE_URL,
     LOGGER,
     ERROR_INTERVAL,
-    HEADERS,
     API_TOKEN,
     API_TOKEN_GET_CREDENTIALS,
     API_TOKEN_POST_AGREEMENTS,
 )
-from prozorro_bridge_frameworkagreement.utils import journal_context, check_tender
+from prozorro_bridge_frameworkagreement.utils import (
+    journal_context,
+    check_tender,
+    BASE_URL,
+    HEADERS,
+)
 from prozorro_bridge_frameworkagreement.db import Db
 from prozorro_bridge_frameworkagreement.journal_msg_ids import (
     DATABRIDGE_GET_CREDENTIALS,

@@ -1,3 +1,17 @@
+from prozorro_crawler.settings import API_VERSION, CRAWLER_USER_AGENT
+
+from prozorro_bridge_frameworkagreement.settings import API_HOST, API_TOKEN
+
+
+BASE_URL = f"{API_HOST}/api/{API_VERSION}"
+
+HEADERS = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {API_TOKEN}",
+    "User-Agent": CRAWLER_USER_AGENT,
+}
+
+
 def journal_context(record: dict = None, params: dict = None) -> dict:
     if record is None:
         record = {}
