@@ -281,15 +281,13 @@ async def test_patch_tender_unsuccessful_positive(mocked_logger, tender_data, er
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps({}))),
     ])
     with patch("prozorro_bridge_frameworkagreement.bridge.asyncio.sleep", AsyncMock()) as mocked_sleep:
-        with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", AsyncMock()) as mocked_db:
-            await patch_tender(tender_data, False, session_mock)
+        await patch_tender(tender_data, False, session_mock)
 
     assert session_mock.patch.await_count == 2
     assert session_mock.patch.await_args.kwargs["json"]["data"]["status"] == "draft.unsuccessful"
     assert mocked_logger.info.call_count == 3
     assert mocked_logger.error.call_count == 0
     assert mocked_logger.warning.call_count == 1
-    assert mocked_db.cache_selective_tender.call_count == 1
     assert mocked_sleep.await_count == 1
 
 
@@ -302,15 +300,13 @@ async def test_patch_tender_active_positive(mocked_logger, tender_data, error_da
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps({}))),
     ])
     with patch("prozorro_bridge_frameworkagreement.bridge.asyncio.sleep", AsyncMock()) as mocked_sleep:
-        with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", AsyncMock()) as mocked_db:
-            await patch_tender(tender_data, True, session_mock)
+        await patch_tender(tender_data, True, session_mock)
 
     assert session_mock.patch.await_count == 2
     assert session_mock.patch.await_args.kwargs["json"]["data"]["status"] == "active.enquiries"
     assert mocked_logger.info.call_count == 3
     assert mocked_logger.error.call_count == 0
     assert mocked_logger.warning.call_count == 1
-    assert mocked_db.cache_selective_tender.call_count == 1
     assert mocked_sleep.await_count == 1
 
 
@@ -318,9 +314,6 @@ async def test_patch_tender_active_positive(mocked_logger, tender_data, error_da
 @patch("prozorro_bridge_frameworkagreement.bridge.LOGGER")
 async def test_process_tender_positive(mocked_logger, tender_data, agreement_data, credentials, error_data):
     session_mock = AsyncMock()
-    db_mock = AsyncMock()
-    db_mock.has_agreements_tender = AsyncMock(return_value=False)
-    db_mock.cache_agreements_tender = AsyncMock(return_value=False)
     session_mock.get = AsyncMock(side_effect=[
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
         MagicMock(status=404, text=AsyncMock(return_value=json.dumps(error_data))),
@@ -331,33 +324,27 @@ async def test_process_tender_positive(mocked_logger, tender_data, agreement_dat
     ])
 
     with patch("prozorro_bridge_frameworkagreement.bridge.asyncio.sleep", AsyncMock()) as mocked_sleep:
-        with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", db_mock):
-            await process_tender(session_mock, tender_data)
+        await process_tender(session_mock, tender_data)
 
     assert session_mock.post.await_count == 1
     assert session_mock.get.await_count == 3
     assert session_mock.patch.await_count == 0
-    assert mocked_logger.info.call_count == 7
+    assert mocked_logger.info.call_count == 6
     assert mocked_logger.error.call_count == 0
     assert mocked_logger.warning.call_count == 0
-    assert db_mock.cache_agreements_tender.call_count == 1
-    assert db_mock.has_agreements_tender.call_count == 1
     assert mocked_sleep.await_count == 0
 
 
 @pytest.mark.asyncio
 @patch("prozorro_bridge_frameworkagreement.bridge.LOGGER")
 async def test_process_tender_skip(mocked_logger, tender_data):
-    db_mock = AsyncMock()
-    db_mock.has_agreements_tender = AsyncMock(return_value=False)
     session_mock = AsyncMock()
     tender_data.pop("agreements")
     session_mock.get = AsyncMock(side_effect=[
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
     ])
 
-    with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", db_mock):
-        await process_tender(session_mock, tender_data)
+    await process_tender(session_mock, tender_data)
 
     assert session_mock.post.await_count == 0
     assert session_mock.get.await_count == 1
@@ -365,28 +352,6 @@ async def test_process_tender_skip(mocked_logger, tender_data):
     assert mocked_logger.info.call_count == 1
     assert mocked_logger.error.call_count == 0
     assert mocked_logger.warning.call_count == 0
-    assert db_mock.cache_agreements_tender.call_count == 0
-    assert db_mock.has_agreements_tender.call_count == 1
-
-
-@pytest.mark.asyncio
-@patch("prozorro_bridge_frameworkagreement.bridge.LOGGER")
-async def test_process_tender_skip_cached(mocked_logger, tender_data):
-    db_mock = AsyncMock()
-    session_mock = AsyncMock()
-    db_mock.has_agreements_tender = AsyncMock(return_value=True)
-
-    with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", db_mock):
-        await process_tender(session_mock, tender_data)
-
-    assert session_mock.post.await_count == 0
-    assert session_mock.get.await_count == 0
-    assert session_mock.patch.await_count == 0
-    assert mocked_logger.info.call_count == 1
-    assert mocked_logger.error.call_count == 0
-    assert mocked_logger.warning.call_count == 0
-    assert db_mock.cache_agreements_tender.call_count == 0
-    assert db_mock.has_agreements_tender.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -395,9 +360,6 @@ async def test_process_tender_selective_positive(mocked_logger, tender_data, agr
     tender_data["procurementMethodType"] = "closeFrameworkAgreementSelectionUA"
     tender_data["status"] = "draft.pending"
     session_mock = AsyncMock()
-    db_mock = AsyncMock()
-    db_mock.has_selective_tender = AsyncMock(return_value=False)
-    db_mock.cache_selective_tender = AsyncMock(return_value=False)
     session_mock.get = AsyncMock(side_effect=[
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
         MagicMock(status=404, text=AsyncMock(return_value=json.dumps(error_data))),
@@ -407,13 +369,11 @@ async def test_process_tender_selective_positive(mocked_logger, tender_data, agr
     ])
 
     with patch("prozorro_bridge_frameworkagreement.bridge.asyncio.sleep", AsyncMock()) as mocked_sleep:
-        with patch("prozorro_bridge_frameworkagreement.bridge.cache_db", db_mock):
-            await process_tender(session_mock, tender_data)
+        await process_tender(session_mock, tender_data)
 
     assert session_mock.get.await_count == 2
     assert session_mock.patch.await_count == 1
     assert mocked_logger.info.call_count == 2
     assert mocked_logger.error.call_count == 0
     assert mocked_logger.warning.call_count == 1
-    assert db_mock.cache_selective_tender.call_count == 1
     assert mocked_sleep.await_count == 0
