@@ -11,3 +11,5 @@ API_TOKEN_POST_AGREEMENTS = os.environ.get("API_TOKEN_POST_AGREEMENTS", "agreeme
 API_TOKEN_GET_CREDENTIALS = os.environ.get("API_TOKEN_GET_CREDENTIALS", "contracting")
 
 ERROR_INTERVAL = int(os.environ.get("ERROR_INTERVAL", 10))
+
+JOURNAL_PREFIX = os.environ.get("JOURNAL_PREFIX", "JOURNAL_")

@@ -1,6 +1,6 @@
 from prozorro_crawler.settings import API_VERSION, CRAWLER_USER_AGENT
 
-from prozorro_bridge_frameworkagreement.settings import API_HOST, API_TOKEN
+from prozorro_bridge_frameworkagreement.settings import API_HOST, API_TOKEN, JOURNAL_PREFIX
 
 BASE_URL = f"{API_HOST}/api/{API_VERSION}"
 
@@ -17,7 +17,7 @@ def journal_context(record: dict = None, params: dict = None) -> dict:
     if params is None:
         params = {}
     for k, v in params.items():
-        record["JOURNAL_" + k] = v
+        record[JOURNAL_PREFIX + k] = v
     return record
 
 
