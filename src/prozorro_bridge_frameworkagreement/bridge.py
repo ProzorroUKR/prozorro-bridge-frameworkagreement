@@ -285,9 +285,8 @@ async def process_tender(session: ClientSession, tender: dict) -> None:
             ),
         )
         return None
-    tender_to_sync = await get_tender(tender["id"], session)
     if tender["procurementMethodType"] == "closeFrameworkAgreementUA":
-        if "agreements" not in tender_to_sync:
+        if "agreements" not in tender:
             LOGGER.info(
                 "No agreements found in tender {}".format(tender["id"]),
                 extra=journal_context(
@@ -297,10 +296,10 @@ async def process_tender(session: ClientSession, tender: dict) -> None:
             )
             return None
         post_results = []
-        async for agreement in get_tender_agreements(tender_to_sync, session):
-            await fill_agreement(agreement, tender_to_sync, session)
+        async for agreement in get_tender_agreements(tender, session):
+            await fill_agreement(agreement, tender, session)
             post_result = await post_agreement(agreement, session)
             post_results.append(post_result)
     elif tender["procurementMethodType"] == "closeFrameworkAgreementSelectionUA":
-        posted_agreements = await check_and_patch_agreements(tender_to_sync["agreements"], tender["id"], session)
+        posted_agreements = await check_and_patch_agreements(tender["agreements"], tender["id"], session)
         await patch_tender(tender, posted_agreements, session)

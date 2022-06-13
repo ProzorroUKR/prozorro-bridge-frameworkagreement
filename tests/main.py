@@ -315,7 +315,6 @@ async def test_patch_tender_active_positive(mocked_logger, tender_data, error_da
 async def test_process_tender_positive(mocked_logger, tender_data, agreement_data, credentials, error_data):
     session_mock = AsyncMock()
     session_mock.get = AsyncMock(side_effect=[
-        MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
         MagicMock(status=404, text=AsyncMock(return_value=json.dumps(error_data))),
         MagicMock(status=200, text=AsyncMock(return_value=json.dumps(credentials))),
     ])
@@ -327,7 +326,7 @@ async def test_process_tender_positive(mocked_logger, tender_data, agreement_dat
         await process_tender(session_mock, tender_data)
 
     assert session_mock.post.await_count == 1
-    assert session_mock.get.await_count == 3
+    assert session_mock.get.await_count == 2
     assert session_mock.patch.await_count == 0
     assert mocked_logger.info.call_count == 6
     assert mocked_logger.error.call_count == 0
@@ -340,14 +339,12 @@ async def test_process_tender_positive(mocked_logger, tender_data, agreement_dat
 async def test_process_tender_skip(mocked_logger, tender_data):
     session_mock = AsyncMock()
     tender_data.pop("agreements")
-    session_mock.get = AsyncMock(side_effect=[
-        MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
-    ])
+    session_mock.get = AsyncMock()
 
     await process_tender(session_mock, tender_data)
 
     assert session_mock.post.await_count == 0
-    assert session_mock.get.await_count == 1
+    assert session_mock.get.await_count == 0
     assert session_mock.patch.await_count == 0
     assert mocked_logger.info.call_count == 1
     assert mocked_logger.error.call_count == 0
@@ -361,7 +358,6 @@ async def test_process_tender_selective_positive(mocked_logger, tender_data, agr
     tender_data["status"] = "draft.pending"
     session_mock = AsyncMock()
     session_mock.get = AsyncMock(side_effect=[
-        MagicMock(status=200, text=AsyncMock(return_value=json.dumps({"data": tender_data}))),
         MagicMock(status=404, text=AsyncMock(return_value=json.dumps(error_data))),
     ])
     session_mock.patch = AsyncMock(side_effect=[
@@ -371,7 +367,7 @@ async def test_process_tender_selective_positive(mocked_logger, tender_data, agr
     with patch("prozorro_bridge_frameworkagreement.bridge.asyncio.sleep", AsyncMock()) as mocked_sleep:
         await process_tender(session_mock, tender_data)
 
-    assert session_mock.get.await_count == 2
+    assert session_mock.get.await_count == 1
     assert session_mock.patch.await_count == 1
     assert mocked_logger.info.call_count == 2
     assert mocked_logger.error.call_count == 0

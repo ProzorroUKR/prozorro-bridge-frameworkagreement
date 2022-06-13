@@ -7,8 +7,11 @@ from prozorro_bridge_frameworkagreement.bridge import process_tender
 
 API_OPT_FIELDS = (
     "status",
-    "lots",
     "procurementMethodType",
+    "lots",
+    "agreements",
+    "procuringEntity",
+    "mode",
 )
 
 async def data_handler(session: ClientSession, items: list) -> None:
