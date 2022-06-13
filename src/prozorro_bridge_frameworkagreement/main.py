@@ -5,6 +5,12 @@ from prozorro_crawler.main import main
 from prozorro_bridge_frameworkagreement.bridge import process_tender
 
 
+API_OPT_FIELDS = (
+    "status",
+    "lots",
+    "procurementMethodType",
+)
+
 async def data_handler(session: ClientSession, items: list) -> None:
     process_items_tasks = []
     for item in items:
@@ -14,4 +20,4 @@ async def data_handler(session: ClientSession, items: list) -> None:
 
 
 if __name__ == "__main__":
-    main(data_handler)
+    main(data_handler, opt_fields=API_OPT_FIELDS)
