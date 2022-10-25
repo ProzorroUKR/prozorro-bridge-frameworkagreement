@@ -206,6 +206,7 @@ async def check_and_patch_agreements(agreements: list, tender_id: str, session: 
         )
         agreement_data = await response.json()
         agreement_data["data"].pop("id")
+        agreement_data["data"].pop("documents", None)
         LOGGER.info(
             f"Patch tender agreement {agreement['id']}",
             extra=journal_context(
